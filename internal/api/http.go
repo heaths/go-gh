@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -74,8 +75,13 @@ func NewHTTPClient(opts *api.ClientOptions) http.Client {
 	}
 
 	transport := http.DefaultTransport
+
 	if opts.Transport != nil {
 		transport = opts.Transport
+	}
+
+	if opts.UnixDomainSocket != "" {
+		transport = newUnixDomainSocketRoundTripper(opts.UnixDomainSocket)
 	}
 
 	transport = newHeaderRoundTripper(opts.Host, opts.AuthToken, opts.Headers, transport)
@@ -207,10 +213,10 @@ func newHeaderRoundTripper(host string, authToken string, headers map[string]str
 	if headers == nil {
 		headers = map[string]string{}
 	}
-	if headers[contentType] == "" {
+	if _, ok := headers[contentType]; !ok {
 		headers[contentType] = jsonContentType
 	}
-	if headers[userAgent] == "" {
+	if _, ok := headers[userAgent]; !ok {
 		headers[userAgent] = "go-gh"
 		info, ok := debug.ReadBuildInfo()
 		if ok {
@@ -222,13 +228,13 @@ func newHeaderRoundTripper(host string, authToken string, headers map[string]str
 			}
 		}
 	}
-	if headers[authorization] == "" && authToken != "" {
+	if _, ok := headers[authorization]; !ok && authToken != "" {
 		headers[authorization] = fmt.Sprintf("token %s", authToken)
 	}
-	if headers[timeZone] == "" {
+	if _, ok := headers[timeZone]; !ok {
 		headers[timeZone] = currentTimeZone()
 	}
-	if headers[accept] == "" {
+	if _, ok := headers[accept]; !ok {
 		// Preview for PullRequest.mergeStateStatus.
 		a := "application/vnd.github.merge-info-preview+json"
 		// Preview for visibility when RESTing repos into an org.
@@ -258,6 +264,18 @@ func (hrt headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	}
 
 	return hrt.rt.RoundTrip(req)
+}
+
+func newUnixDomainSocketRoundTripper(socketPath string) http.RoundTripper {
+	dial := func(network, addr string) (net.Conn, error) {
+		return net.Dial("unix", socketPath)
+	}
+
+	return &http.Transport{
+		Dial:              dial,
+		DialTLS:           dial,
+		DisableKeepAlives: true,
+	}
 }
 
 func currentTimeZone() string {

@@ -44,6 +44,12 @@ type ClientOptions struct {
 	// Transport specifies the mechanism by which individual API requests are made.
 	// Default is http.DefaultTransport.
 	Transport http.RoundTripper
+
+	// UnixDomainSocket specifies the Unix domain socket address by which individual
+	// API requests will be routed. If specifed, this will form the base of the API
+	// request transport chain taking precedence over Transport ClientOption.
+	// Default is no socket address.
+	UnixDomainSocket string
 }
 
 // RESTClient is the interface that wraps methods for the different types of
