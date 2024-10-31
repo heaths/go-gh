@@ -63,6 +63,15 @@ func TokenFromEnvOrConfig(host string) (string, string) {
 
 func tokenForHost(cfg *config.Config, host string) (string, string) {
 	host = NormalizeHostname(host)
+
+	if isCodespaces, _ := strconv.ParseBool(os.Getenv(codespaces)); isCodespaces {
+		if host == github || host == localhost {
+			if token := os.Getenv(githubToken); token != "" {
+				return token, githubToken
+			}
+		}
+	}
+
 	if IsEnterprise(host) {
 		if token := os.Getenv(ghEnterpriseToken); token != "" {
 			return token, ghEnterpriseToken
@@ -70,25 +79,25 @@ func tokenForHost(cfg *config.Config, host string) (string, string) {
 		if token := os.Getenv(githubEnterpriseToken); token != "" {
 			return token, githubEnterpriseToken
 		}
-		if isCodespaces, _ := strconv.ParseBool(os.Getenv(codespaces)); isCodespaces {
-			if token := os.Getenv(githubToken); token != "" {
-				return token, githubToken
+		if cfg != nil {
+			if token, _ := cfg.Get([]string{hostsKey, host, oauthToken}); token != "" {
+				return token, oauthToken
 			}
 		}
-		if cfg != nil {
-			token, _ := cfg.Get([]string{hostsKey, host, oauthToken})
-			return token, oauthToken
-		}
+		return "", defaultSource
 	}
+
 	if token := os.Getenv(ghToken); token != "" {
 		return token, ghToken
 	}
 	if token := os.Getenv(githubToken); token != "" {
 		return token, githubToken
 	}
+
 	if cfg != nil {
-		token, _ := cfg.Get([]string{hostsKey, host, oauthToken})
-		return token, oauthToken
+		if token, _ := cfg.Get([]string{hostsKey, host, oauthToken}); token != "" {
+			return token, oauthToken
+		}
 	}
 	return "", defaultSource
 }

@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTokenForHost(t *testing.T) {
@@ -15,26 +17,24 @@ func TestTokenForHost(t *testing.T) {
 		githubEnterpriseToken string
 		ghToken               string
 		ghEnterpriseToken     string
+		codespaces            bool
 		config                *config.Config
 		wantToken             string
 		wantSource            string
-		wantNotFound          bool
 	}{
 		{
-			name:         "token for github.com with no env tokens and no config token",
-			host:         "github.com",
-			config:       testNoHostsConfig(),
-			wantToken:    "",
-			wantSource:   "oauth_token",
-			wantNotFound: true,
+			name:       "token for github.com with no env tokens and no config token",
+			host:       "github.com",
+			config:     testNoHostsConfig(),
+			wantToken:  "",
+			wantSource: defaultSource,
 		},
 		{
-			name:         "token for enterprise.com with no env tokens and no config token",
-			host:         "enterprise.com",
-			config:       testNoHostsConfig(),
-			wantToken:    "",
-			wantSource:   "oauth_token",
-			wantNotFound: true,
+			name:       "token for enterprise.com with no env tokens and no config token",
+			host:       "enterprise.com",
+			config:     testNoHostsConfig(),
+			wantToken:  "",
+			wantSource: defaultSource,
 		},
 		{
 			name:        "token for github.com with GH_TOKEN, GITHUB_TOKEN, and config token",
@@ -43,7 +43,7 @@ func TestTokenForHost(t *testing.T) {
 			githubToken: "GITHUB_TOKEN",
 			config:      testHostsConfig(),
 			wantToken:   "GH_TOKEN",
-			wantSource:  "GH_TOKEN",
+			wantSource:  ghToken,
 		},
 		{
 			name:        "token for github.com with GITHUB_TOKEN, and config token",
@@ -51,14 +51,14 @@ func TestTokenForHost(t *testing.T) {
 			githubToken: "GITHUB_TOKEN",
 			config:      testHostsConfig(),
 			wantToken:   "GITHUB_TOKEN",
-			wantSource:  "GITHUB_TOKEN",
+			wantSource:  githubToken,
 		},
 		{
 			name:       "token for github.com with config token",
 			host:       "github.com",
 			config:     testHostsConfig(),
 			wantToken:  "xxxxxxxxxxxxxxxxxxxx",
-			wantSource: "oauth_token",
+			wantSource: oauthToken,
 		},
 		{
 			name:                  "token for enterprise.com with GH_ENTERPRISE_TOKEN, GITHUB_ENTERPRISE_TOKEN, and config token",
@@ -67,7 +67,7 @@ func TestTokenForHost(t *testing.T) {
 			githubEnterpriseToken: "GITHUB_ENTERPRISE_TOKEN",
 			config:                testHostsConfig(),
 			wantToken:             "GH_ENTERPRISE_TOKEN",
-			wantSource:            "GH_ENTERPRISE_TOKEN",
+			wantSource:            ghEnterpriseToken,
 		},
 		{
 			name:                  "token for enterprise.com with GITHUB_ENTERPRISE_TOKEN, and config token",
@@ -75,14 +75,14 @@ func TestTokenForHost(t *testing.T) {
 			githubEnterpriseToken: "GITHUB_ENTERPRISE_TOKEN",
 			config:                testHostsConfig(),
 			wantToken:             "GITHUB_ENTERPRISE_TOKEN",
-			wantSource:            "GITHUB_ENTERPRISE_TOKEN",
+			wantSource:            githubEnterpriseToken,
 		},
 		{
 			name:       "token for enterprise.com with config token",
 			host:       "enterprise.com",
 			config:     testHostsConfig(),
 			wantToken:  "yyyyyyyyyyyyyyyyyyyy",
-			wantSource: "oauth_token",
+			wantSource: oauthToken,
 		},
 		{
 			name:        "token for tenant with GH_TOKEN, GITHUB_TOKEN, and config token",
@@ -91,7 +91,7 @@ func TestTokenForHost(t *testing.T) {
 			githubToken: "GITHUB_TOKEN",
 			config:      testHostsConfig(),
 			wantToken:   "GH_TOKEN",
-			wantSource:  "GH_TOKEN",
+			wantSource:  ghToken,
 		},
 		{
 			name:        "token for tenant with GITHUB_TOKEN, and config token",
@@ -99,14 +99,62 @@ func TestTokenForHost(t *testing.T) {
 			githubToken: "GITHUB_TOKEN",
 			config:      testHostsConfig(),
 			wantToken:   "GITHUB_TOKEN",
-			wantSource:  "GITHUB_TOKEN",
+			wantSource:  githubToken,
 		},
 		{
 			name:       "token for tenant with config token",
 			host:       "tenant.ghe.com",
 			config:     testHostsConfig(),
 			wantToken:  "zzzzzzzzzzzzzzzzzzzz",
-			wantSource: "oauth_token",
+			wantSource: oauthToken,
+		},
+		{
+			name:        "Token for non-github host in a codespace",
+			host:        "doesnotmatter.com",
+			config:      testNoHostsConfig(),
+			githubToken: "GITHUB_TOKEN",
+			codespaces:  true,
+			wantToken:   "",
+			wantSource:  defaultSource,
+		},
+		{
+			name:        "Token for github.com in a codespace",
+			host:        "github.com",
+			config:      testNoHostsConfig(),
+			githubToken: "GITHUB_TOKEN",
+			codespaces:  true,
+			wantToken:   "GITHUB_TOKEN",
+			wantSource:  githubToken,
+		},
+		{
+			// We are in a codespace (dotcom), and we have set our own GITHUB_TOKEN, not using the codespace one
+			// and we are targeting tenant.ghe.com
+			name:        "Token for tenant.ghe.com in a codespace",
+			host:        "tenant.ghe.com",
+			config:      testNoHostsConfig(),
+			githubToken: "GITHUB_TOKEN",
+			codespaces:  true,
+			wantToken:   "GITHUB_TOKEN",
+			wantSource:  githubToken,
+		},
+		{
+			name:        "Token for github.localhost in a codespace",
+			host:        "github.localhost",
+			config:      testNoHostsConfig(),
+			githubToken: "GITHUB_TOKEN",
+			codespaces:  true,
+			wantToken:   "GITHUB_TOKEN",
+			wantSource:  githubToken,
+		},
+		{
+			// We are in codespace (dotcom), and we have set a GITHUB_ENTERPRISE_TOKEN, and we are targeting GHES
+			name:                  "Enterprise Token for GHES in a codespace",
+			host:                  "enterprise.com",
+			config:                testNoHostsConfig(),
+			githubEnterpriseToken: "GITHUB_ENTERPRISE_TOKEN",
+			codespaces:            true,
+			wantToken:             "GITHUB_ENTERPRISE_TOKEN",
+			wantSource:            githubEnterpriseToken,
 		},
 	}
 
@@ -116,9 +164,10 @@ func TestTokenForHost(t *testing.T) {
 			t.Setenv("GITHUB_ENTERPRISE_TOKEN", tt.githubEnterpriseToken)
 			t.Setenv("GH_TOKEN", tt.ghToken)
 			t.Setenv("GH_ENTERPRISE_TOKEN", tt.ghEnterpriseToken)
+			t.Setenv("CODESPACES", strconv.FormatBool(tt.codespaces))
 			token, source := tokenForHost(tt.config, tt.host)
-			assert.Equal(t, tt.wantToken, token)
-			assert.Equal(t, tt.wantSource, source)
+			require.Equal(t, tt.wantToken, token, "Expected token for \"%s\" to be \"%s\", got \"%s\"", tt.host, tt.wantToken, token)
+			require.Equal(t, tt.wantSource, source, "Expected source for \"%s\" to be \"%s\", got \"%s\"", tt.host, tt.wantSource, source)
 		})
 	}
 }
