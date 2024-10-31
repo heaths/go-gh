@@ -76,7 +76,7 @@ func TestTokenForHost(t *testing.T) {
 			wantSource:  githubToken,
 		},
 		{
-			name:       "given a config token is set for any subdomain of ghe.com, when we get the token, then it returns that token and oauth_token source",
+			name:       "given a config token is set for a subdomain of ghe.com, when we get the token for that subdomain, then it returns that token and oauth_token source",
 			host:       "tenant.ghe.com",
 			config:     testHostsConfig(),
 			wantToken:  "zzzzzzzzzzzzzzzzzzzz",
