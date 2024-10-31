@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"strconv"
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/config"
@@ -17,27 +16,26 @@ func TestTokenForHost(t *testing.T) {
 		githubEnterpriseToken string
 		ghToken               string
 		ghEnterpriseToken     string
-		codespaces            bool
 		config                *config.Config
 		wantToken             string
 		wantSource            string
 	}{
 		{
-			name:       "token for github.com with no env tokens and no config token",
+			name:       "given there is no env token and no config token, when we get the token for github.com, then it returns the empty string and default source",
 			host:       "github.com",
 			config:     testNoHostsConfig(),
 			wantToken:  "",
 			wantSource: defaultSource,
 		},
 		{
-			name:       "token for enterprise.com with no env tokens and no config token",
+			name:       "given there is no env token and no config token, when we get the token for an enterprise server host, then it returns the empty string and default source",
 			host:       "enterprise.com",
 			config:     testNoHostsConfig(),
 			wantToken:  "",
 			wantSource: defaultSource,
 		},
 		{
-			name:        "token for github.com with GH_TOKEN, GITHUB_TOKEN, and config token",
+			name:        "given GH_TOKEN and GITHUB_TOKEN and a config token are set, when we get the token for github.com, then it returns GH_TOKEN as the priority",
 			host:        "github.com",
 			ghToken:     "GH_TOKEN",
 			githubToken: "GITHUB_TOKEN",
@@ -46,7 +44,7 @@ func TestTokenForHost(t *testing.T) {
 			wantSource:  ghToken,
 		},
 		{
-			name:        "token for github.com with GITHUB_TOKEN, and config token",
+			name:        "given GITHUB_TOKEN and a config token are set, when we get the token for github.com, then it returns GITHUB_TOKEN as the priority",
 			host:        "github.com",
 			githubToken: "GITHUB_TOKEN",
 			config:      testHostsConfig(),
@@ -54,14 +52,55 @@ func TestTokenForHost(t *testing.T) {
 			wantSource:  githubToken,
 		},
 		{
-			name:       "token for github.com with config token",
+			name:       "given a config token is set for github.com, when we get the token, then it returns that token and oauth_token source",
 			host:       "github.com",
 			config:     testHostsConfig(),
 			wantToken:  "xxxxxxxxxxxxxxxxxxxx",
 			wantSource: oauthToken,
 		},
 		{
-			name:                  "token for enterprise.com with GH_ENTERPRISE_TOKEN, GITHUB_ENTERPRISE_TOKEN, and config token",
+			name:        "given GH_TOKEN and GITHUB_TOKEN and a config token are set, when we get the token for any subdomain of ghe.com, then it returns GH_TOKEN as the priority",
+			host:        "tenant.ghe.com",
+			ghToken:     "GH_TOKEN",
+			githubToken: "GITHUB_TOKEN",
+			config:      testHostsConfig(),
+			wantToken:   "GH_TOKEN",
+			wantSource:  ghToken,
+		},
+		{
+			name:        "given GITHUB_TOKEN and a config token are set, when we get the token for any subdomain of ghe.com, then it returns GITHUB_TOKEN as the priority",
+			host:        "tenant.ghe.com",
+			githubToken: "GITHUB_TOKEN",
+			config:      testHostsConfig(),
+			wantToken:   "GITHUB_TOKEN",
+			wantSource:  githubToken,
+		},
+		{
+			name:       "given a config token is set for any subdomain of ghe.com, when we get the token, then it returns that token and oauth_token source",
+			host:       "tenant.ghe.com",
+			config:     testHostsConfig(),
+			wantToken:  "zzzzzzzzzzzzzzzzzzzz",
+			wantSource: oauthToken,
+		},
+		{
+			name:        "given GH_TOKEN and GITHUB_TOKEN and a config token are set, when we get the token for github.localhost, then it returns GH_TOKEN as the priority",
+			host:        "github.localhost",
+			ghToken:     "GH_TOKEN",
+			githubToken: "GITHUB_TOKEN",
+			config:      testHostsConfig(),
+			wantToken:   "GH_TOKEN",
+			wantSource:  ghToken,
+		},
+		{
+			name:        "given GITHUB_TOKEN and a config token are set, when we get the token for any subdomain of github.localhost, then it returns GITHUB_TOKEN as the priority",
+			host:        "github.localhost",
+			githubToken: "GITHUB_TOKEN",
+			config:      testHostsConfig(),
+			wantToken:   "GITHUB_TOKEN",
+			wantSource:  githubToken,
+		},
+		{
+			name:                  "given GH_ENTERPRISE_TOKEN and GITHUB_ENTERPRISE_TOKEN and a config token are set, when we get the token for an enterprise server host, then it returns GH_ENTERPRISE_TOKEN as the priority",
 			host:                  "enterprise.com",
 			ghEnterpriseToken:     "GH_ENTERPRISE_TOKEN",
 			githubEnterpriseToken: "GITHUB_ENTERPRISE_TOKEN",
@@ -70,7 +109,7 @@ func TestTokenForHost(t *testing.T) {
 			wantSource:            ghEnterpriseToken,
 		},
 		{
-			name:                  "token for enterprise.com with GITHUB_ENTERPRISE_TOKEN, and config token",
+			name:                  "given GITHUB_ENTERPRISE_TOKEN and a config token are set, when we get the token for an enterprise server host, then it returns GITHUB_ENTERPRISE_TOKEN as the priority",
 			host:                  "enterprise.com",
 			githubEnterpriseToken: "GITHUB_ENTERPRISE_TOKEN",
 			config:                testHostsConfig(),
@@ -78,83 +117,20 @@ func TestTokenForHost(t *testing.T) {
 			wantSource:            githubEnterpriseToken,
 		},
 		{
-			name:       "token for enterprise.com with config token",
+			name:       "given a config token is set for an enterprise server host, when we get the token for that host, then it returns that token and oauth_token source",
 			host:       "enterprise.com",
 			config:     testHostsConfig(),
 			wantToken:  "yyyyyyyyyyyyyyyyyyyy",
 			wantSource: oauthToken,
 		},
 		{
-			name:        "token for tenant with GH_TOKEN, GITHUB_TOKEN, and config token",
-			host:        "tenant.ghe.com",
+			name:        "given GH_TOKEN or GITHUB_TOKEN are set, when I get the token for any host not owned by GitHub, we do not get those tokens",
+			host:        "unknown.com",
+			config:      testNoHostsConfig(),
 			ghToken:     "GH_TOKEN",
 			githubToken: "GITHUB_TOKEN",
-			config:      testHostsConfig(),
-			wantToken:   "GH_TOKEN",
-			wantSource:  ghToken,
-		},
-		{
-			name:        "token for tenant with GITHUB_TOKEN, and config token",
-			host:        "tenant.ghe.com",
-			githubToken: "GITHUB_TOKEN",
-			config:      testHostsConfig(),
-			wantToken:   "GITHUB_TOKEN",
-			wantSource:  githubToken,
-		},
-		{
-			name:       "token for tenant with config token",
-			host:       "tenant.ghe.com",
-			config:     testHostsConfig(),
-			wantToken:  "zzzzzzzzzzzzzzzzzzzz",
-			wantSource: oauthToken,
-		},
-		{
-			name:        "Token for non-github host in a codespace",
-			host:        "doesnotmatter.com",
-			config:      testNoHostsConfig(),
-			githubToken: "GITHUB_TOKEN",
-			codespaces:  true,
 			wantToken:   "",
 			wantSource:  defaultSource,
-		},
-		{
-			name:        "Token for github.com in a codespace",
-			host:        "github.com",
-			config:      testNoHostsConfig(),
-			githubToken: "GITHUB_TOKEN",
-			codespaces:  true,
-			wantToken:   "GITHUB_TOKEN",
-			wantSource:  githubToken,
-		},
-		{
-			// We are in a codespace (dotcom), and we have set our own GITHUB_TOKEN, not using the codespace one
-			// and we are targeting tenant.ghe.com
-			name:        "Token for tenant.ghe.com in a codespace",
-			host:        "tenant.ghe.com",
-			config:      testNoHostsConfig(),
-			githubToken: "GITHUB_TOKEN",
-			codespaces:  true,
-			wantToken:   "GITHUB_TOKEN",
-			wantSource:  githubToken,
-		},
-		{
-			name:        "Token for github.localhost in a codespace",
-			host:        "github.localhost",
-			config:      testNoHostsConfig(),
-			githubToken: "GITHUB_TOKEN",
-			codespaces:  true,
-			wantToken:   "GITHUB_TOKEN",
-			wantSource:  githubToken,
-		},
-		{
-			// We are in codespace (dotcom), and we have set a GITHUB_ENTERPRISE_TOKEN, and we are targeting GHES
-			name:                  "Enterprise Token for GHES in a codespace",
-			host:                  "enterprise.com",
-			config:                testNoHostsConfig(),
-			githubEnterpriseToken: "GITHUB_ENTERPRISE_TOKEN",
-			codespaces:            true,
-			wantToken:             "GITHUB_ENTERPRISE_TOKEN",
-			wantSource:            githubEnterpriseToken,
 		},
 	}
 
@@ -164,7 +140,6 @@ func TestTokenForHost(t *testing.T) {
 			t.Setenv("GITHUB_ENTERPRISE_TOKEN", tt.githubEnterpriseToken)
 			t.Setenv("GH_TOKEN", tt.ghToken)
 			t.Setenv("GH_ENTERPRISE_TOKEN", tt.ghEnterpriseToken)
-			t.Setenv("CODESPACES", strconv.FormatBool(tt.codespaces))
 			token, source := tokenForHost(tt.config, tt.host)
 			require.Equal(t, tt.wantToken, token, "Expected token for \"%s\" to be \"%s\", got \"%s\"", tt.host, tt.wantToken, token)
 			require.Equal(t, tt.wantSource, source, "Expected source for \"%s\" to be \"%s\", got \"%s\"", tt.host, tt.wantSource, source)
