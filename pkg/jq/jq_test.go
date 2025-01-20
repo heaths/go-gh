@@ -35,7 +35,9 @@ func ExampleEvaluate() {
 		panic(err)
 	}
 
-	io.Copy(os.Stdout, &output)
+	if _, err := io.Copy(os.Stdout, &output); err != nil {
+		panic(err)
+	}
 
 	// Output:
 	// {"event":"first event","time":"10 minutes ago"}
